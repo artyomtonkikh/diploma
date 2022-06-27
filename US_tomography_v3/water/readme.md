@@ -1,4 +1,6 @@
 input data from experiments  
+  
+  
 40x40 grid  
 ![1](40x40.png)  
 50x50 grid  
