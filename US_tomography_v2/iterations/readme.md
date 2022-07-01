@@ -1,4 +1,7 @@
 all iterations on 40x40 grid  
+input data from experiments  
+  
+  
 2-nd iteration  
 ![1](iter_2.png)  
 3-rd iteration  
