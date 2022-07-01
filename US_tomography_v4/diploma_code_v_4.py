@@ -14,7 +14,7 @@ def plot_speed(scaling,radius):
     axis=np.linspace(-radius, radius, n)
 
     #начальное распределение скорости до масштабирования
-    sound_speed=1500.0*np.ones(n*n)
+    sound_speed=1400.0*np.ones(n*n)
     for i in range(n):
         for j in range(n):
             if(np.sqrt(axis[i]**2+axis[j]**2)>=radius):
@@ -22,7 +22,7 @@ def plot_speed(scaling,radius):
                 sound_speed[n*i+j]=0
     
     #масштабирование
-    sound_speed=sound_speed*np.exp(scaling-np.ones(n*n))
+    sound_speed=np.multiply(sound_speed,np.exp(scaling-np.ones(n*n)))
     plt.clf()
     z=np.reshape(sound_speed, (n, n)) 
     cp = plt.contourf(axis, axis, z)
@@ -87,23 +87,31 @@ def SPSA(u, v, b, lambda_k):
     #||[J^T*J+lambda_kdiag(J^T*J)]x-b||^2->min
 
     #Якобиан через диадное произведение
-    #J=(f_per-f_ini)⊗pertur = (f_per-f_ini)*pertur^T
-    #обозначив u=f_per-f_ini и v=pertur
+    #J=(f_per-f_ini)⊗reciprocal(pertur) = (f_per-f_ini)*reciprocal(pertur)^T
+    #reciprocal(pertur)_i=1/pertur_i
+    #обозначив u=f_per-f_ini и v=reciprocal(pertur)
     
     n=b.shape
     with torch.no_grad():
-        maxiter=1
+        maxiter=10
+
+        #коэффициенты в SPSA
+        A=10
+        c1=0.05
+        a1=0.002
 
         #начальное решение
         x=torch.zeros(n).to('cuda')
 
         for iter in range(maxiter):
-            a_iter=1/(iter+5)
-            c_iter=1/(iter+5)
+            a_iter=a1/((iter+1+A)**(0.602))
+            c_iter=c1/((iter+1)**(0.101))
 
-            #вектор возмущений равномерно распределенных [-1,1] величин
-            pertur=2.0*torch.rand(n)-torch.ones(n)
+            #вектор возмущений из Радемахеровских случайных величин {-1,1}
+            pertur=torch.rand(n)
+            pertur=2.0*torch.bernoulli(pertur)-torch.ones(n)
             pertur=pertur.to('cuda')
+            pertur=pertur.type(torch.float64)
 
             #возмущение начального решения назад
             x_per=x-c_iter*pertur
@@ -112,9 +120,9 @@ def SPSA(u, v, b, lambda_k):
             y1=torch.dot(x_per,v)*torch.dot(u,u)*v
 
             #lambda_k*diag(J_T*J)*x
-            y2=lambda_k*torch.mul(torch.dot(u,u)*torch.mul(v,v),x_per)
+            y2=lambda_k*torch.dot(u,u)*torch.mul(v,v)*x_per
 
-            #||(J_T*J+lambda_k*diag(J_T*J))*x-b||
+            #||(J_T*J+lambda_k*diag(J_T*J))*x-b||^2
             F_ini=F(y1+y2-b)
 
             #возмущение начального решения вперед
@@ -124,9 +132,9 @@ def SPSA(u, v, b, lambda_k):
             y1=torch.dot(x_per,v)*torch.dot(u,u)*v
 
             #lambda_k*diag(J_T*J)*x
-            y2=lambda_k*torch.mul(torch.dot(u,u)*torch.mul(v,v),x_per)
+            y2=lambda_k*torch.dot(u,u)*torch.mul(v,v)*x_per
 
-            #||(J_T*J+lambda_k*diag(J_T*J))*x-b||
+            #||(J_T*J+lambda_k*diag(J_T*J))*x-b||^2
             F_per=F(y1+y2-b)
             
             #∇F(x)=∇||(J_T*J+lambda_k*diag(J_T*J))*x-b||^2
@@ -144,14 +152,14 @@ def wave_solve(scaling, sensor_count, radius):
     axis=np.linspace(-radius, radius, n)
 
     #начальное распределение используемое процессором
-    c_cpu=1500.0*np.ones(n*n)
+    c_cpu=1400.0*np.ones(n*n)
 
     for i in range(n):
         for j in range(n):
             if(np.sqrt(axis[i]**2+axis[j]**2)>=radius):
                 c_cpu[n*i+j]=0.0
     
-    c_cpu=c_cpu*np.exp(scaling-np.ones(n*n))
+    c_cpu=np.multiply(c_cpu,np.exp(scaling-np.ones(n*n)))
     c_cpu=np.reshape(c_cpu, (n, n))
 
     #перенос масштабированного распределения на GPU
@@ -243,7 +251,7 @@ def lm_method(scaling_ini, sensor_count, radius):
     #метод Левенберга -- Марквардта
 
     #ограничение итераций
-    maxiter=20
+    maxiter=10
     n_sq=np.size(scaling_ini,0)
     n=int(np.sqrt(n_sq))
 
@@ -258,13 +266,17 @@ def lm_method(scaling_ini, sensor_count, radius):
     nu=1.0001
     n=int(np.sqrt(len(scaling_ini)))
     plt.ion()
+
+    #коэффициент в SPSA
+    c1=0.05
+
     for iter in range(maxiter):
         
-        c_iter=1/(iter+5)
-        #вектор возмущений равномерно распределенных [-1,1] величин
+        c_iter=c1/((iter+1)**(0.101))
+        #вектор возмущений из Радемахеровских случайных величин {-1,1}
         #SPSA
-        pertur=2.0*np.random.rand(n*n)-np.ones(n*n)
-        pertur=pertur
+        pertur=2.0*np.random.binomial(1,0.5,n*n)-np.ones(n*n)
+        pertur=pertur.astype(dtype=np.float64)
 
         #возмущение начального scaling'а
         scaling_per=scaling_ini-c_iter*pertur
@@ -288,10 +300,11 @@ def lm_method(scaling_ini, sensor_count, radius):
         f_per=f_per/max_loss
 
         #Якобиан представляем через диадное произведение
-        #J=(f_per-f_ini)⊗pertur = (f_per-f_ini)*pertur^T
-        #обозначив u=f_per-f_ini и v=pertur
+        #J=(f_per-f_ini)⊗reciprocal(pertur) = (f_per-f_ini)*reciprocal(pertur)^T
+        #reciprocal(pertur)_i=1/pertur_i
+        #обозначим u=f_per-f_ini и v=reciprocal(pertur)
         u=torch.from_numpy(f_per-f_ini).to('cuda')
-        v=torch.from_numpy(pertur).to('cuda')
+        v=torch.from_numpy(np.reciprocal(pertur)).to('cuda')
 
         #действие диадного произведения на вектор
         #(u⊗v)x=(x*v)*u
@@ -325,14 +338,14 @@ def lm_method(scaling_ini, sensor_count, radius):
         #отрисовка
         plot_speed(scaling_ini, radius)
         
-        if(F(torch.from_numpy(p_cpu))<eps):
+        if(F(torch.from_numpy(f_per))<eps):
             break
     return scaling_ini
 
         
 
 #сетка области n*n
-n=50
+n=100
 
 #количество учитываемых сенсоров
 sensor_count=16
