@@ -1,7 +1,7 @@
 water 100x100 grid 16 sensors  
-![1](100x100.png)
+![1](water100x100.png)
 water 1000x1000 grid 16 sensors  
-![2](1000x1000.png)
+![2](water.png)
 phantom 5b true dislocation  
 ![3](body5b.png)
 phantom 5b approximate dislocation, iterations:  
