@@ -1,5 +1,11 @@
-new approach:  
-1. Jacob matrix performed as product multiplication u⊗v, so we don't need to have large matrixes  
-2. using SPSA method for solve $$[J^{T}J+\lambda_kdiag(J^TJ)]x=-J^Tf_{ini}$$
 water 100x100 grid 16 sensors  
-![1](100x100_16_sensors.png)
+![1](100x100.png)
+water 1000x1000 grid 16 sensors
+![2](1000x1000.png)
+phantom 5b true dislocation
+![3](body5b.png)
+phantom 5b approximate dislocation, iterations:
+![4](myplot1.png)
+![5](myplot4.png)
+![6](myplot6.png)
+![7](myplot7.png)
